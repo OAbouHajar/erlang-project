@@ -9,7 +9,7 @@
 -module(examples).
 
 -export([count/1,complexCount/1,split/1,sum/1,append/2,joe/0,member/2,
-         delete/2,binarySearch/2,quicksort/1,factorial/1,ping/0,pong/0]).
+         delete/2,binarySearch/2,quicksort/1,factorial/1,ping/0,pong/0, isPrime/1]).
 
 %this is a comment!
 count([])->
@@ -37,6 +37,8 @@ complexCount([_|Tail]) ->
     1+complexCount(Tail);
 complexCount(_)->
     0.
+isPrime(Number)->
+    hasNoDivisor(Number,2).
 
 %sum([])->
 %    0;
