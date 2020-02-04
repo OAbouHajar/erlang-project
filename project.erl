@@ -1,8 +1,9 @@
 -module(project).
--export([start/0, store/2, lookup/1, prime/1, sendTo/2, 
-hasNoDivisor/2,isPrime/1, sendMsg/4 ,
+-export([start/2 , store/2, lookup/1, prime/1, sendTo/2, 
+hasNoDivisor/2,isPrime/1, nList/0,
 getNthPrime/1,getNextPrime/1, routTable/0,routTableKey/1,routTableHops/1 ,
-update/2,findN/2,updateRT/3,addIfBetter/3,senderName/1,urT/3,cNP/4]).
+update/2,findN/2,updateRT/3,addIfBetter/3,senderName/1,urT/3,cNP/4
+,rTable/0,nListSam/0 ,rTableSam/0,initNList/0,computeNthPrime/4 ]).
 
 
 
@@ -107,7 +108,7 @@ routTableKey(X,[_|Tail]) ->
 
 %get the hpos 
 routTableHops(Dist) ->
-    RtableD = [{osama,c00220135,0},{colnth,c00220111,1},{brenden,c00220222,1},{holly,joe@osama,2},{martin,c00220444,3}],
+    RtableD = [{osama,c00220135,0},{colnth,c00220111,1},{brenden,c00220222,1},{holly,sam@osama,2},{martin,c00220444,3}],
     routTableHops(Dist,RtableD).
 
 routTableHops(_,[])->
@@ -122,7 +123,8 @@ routTableHops(X,[_|Tail]) ->
 cNP(N,DistNname,SenderNname,Hops)->
     rpc({cNP,N,DistNname,SenderNname,Hops}).
 
-
+computeNthPrime(N,DistNname,SenderNname,Hops)->
+    rpc({computeNthPrime,N,DistNname,SenderNname,Hops}).
 
 %sender details
 senderName(From)->
@@ -132,12 +134,6 @@ senderName(From)->
 sendTo(Key,Pr)->
     rpc({sendTo,Key,Pr}).
 
-
-
-%joe code old one
-start()->
-    register(project, spawn(fun()->loop() end)).
-
 store(Key,Value)->
     rpc({store,Key,Value}).
 
@@ -145,17 +141,59 @@ lookup(Key)->
     rpc({lookup,Key}).
 
 
-sendMsg(N,DistNname,SenderNname,Hops)->
-    receive  
-        {From, {cNP,N,DistNname,SenderNname,Hops}} ->
-            io:format("the N Number request     : ~p ~n" , [N]),
-            io:format("the Distnation Nickname  : ~p ~n" , [routTableKey(DistNname)]),
-            io:format("the sender Nickname      : ~p ~n" , [routTableKey(SenderNname)]),
-            io:format("the Number returned      : ~p ~n" , [getNthPrime(N)]),
-            io:format("the Hops                 : ~p ~n" , [Hops]),
-            From!{project,[N,getNthPrime(N),routTableKey(DistNname),routTableKey(SenderNname),Hops]},
-            sendMsg(N,DistNname,SenderNname,Hops)
-end.
+
+
+%joe code old one
+start(RTable,NList)->
+    register(project, spawn(fun()->loop(RTable,NList) end)).
+
+
+initNList()->
+    PJoe = spawn(fun()-> loop([],[]) end),
+    PSam = spawn(fun()-> loop([],[]) end),
+    PJack = spawn(fun()-> loop([],[]) end),
+    PRad = spawn(fun()-> loop([],[]) end),
+    NList = [{joe,PJoe},{sam,PSam},{jack,PJack},{rad,PRad}],
+    NList.
+
+nList()->
+    PJoe = spawn(fun()-> loop([],[]) end),
+    PSam = spawn(fun()-> loop([],[]) end),
+    NList = [{joe,PJoe},{sam,PSam}],
+    NList.
+
+rTable()->
+    RTable = [{osama,osama,0},{sam,sam,1},{joe,joe,1},{jack,sam,2},{rad,sam,2}],
+    RTable.
+
+nListSam()->
+    PJack = spawn(fun()-> loop([],[]) end),
+    PRad = spawn(fun()-> loop([],[]) end),
+    POsama = spawn(fun()-> loop([],[]) end),
+
+    NList = [{jack,PJack},{rad,PRad},{osama,POsama}],
+    NList.
+
+rTableSam()->
+    RTable = [{sam,sam,0},{osama,osama,1},{jack,jack,1},{rad,rad,1},{joe,osama,2}],
+    RTable.
+
+
+lookUpTable(_,[])->
+    notFound;
+lookUpTable(X,[{D,N,_}|_]) when X == D ->
+    N;
+lookUpTable(X,[_|Tail]) ->
+    lookUpTable(X,Tail).
+
+
+findNighPid(_,[])->
+    notFound;
+findNighPid(X,[{D,N}|Tail]) when X == D ->
+    N;
+findNighPid(X,[_|Tail]) ->
+    findNighPid(X,Tail).
+
 
 rpc(Query)->
     project!{self(), Query},
@@ -164,27 +202,27 @@ rpc(Query)->
 	    Reply
     end.
     
-loop()->
+loop(RTable,NList)->
     receive
 	{From, {store,Key,Value}}->
 	    put(Key,Value),
 	    From!{project,true},
-	    loop();
+	    loop(RTable,NList);
 	{From,{lookup,Key}} ->
 	    From!{project, get(Key)},
-	    loop();
+	    loop(RTable,NList);
     {From,{urT,N,NW,S}} ->
         io:format("the sender : ~p ~n" , [S]),
         io:format("the old Table : ~p ~n" , [N]),
         io:format("the sender table : ~p ~n" , [NW]),
         From!{project,updateRT(N,NW,S)},
-        loop();
+        loop(RTable,NList);
     {From, {prime,Pr}} ->
         io:format("the sender : ~p ~n" , [From]),
         io:format("the prime number requested : ~p ~n" , [Pr]),
         io:format("the answerd is : ~p ~n" , [getNthPrime(Pr)]),
 	    From!{project,getNthPrime(Pr)},
-        loop();
+        loop(RTable,NList);
     {From, {cNP,N,DistNname,SenderNname,Hops}} ->
         io:format("the N Number request     : ~p ~n" , [N]),
         io:format("the Distnation Nickname  : ~p ~n" , [routTableKey(DistNname)]),
@@ -192,7 +230,20 @@ loop()->
         io:format("the Number returned      : ~p ~n" , [getNthPrime(N)]),
         io:format("the Hops                 : ~p ~n" , [Hops]),
 	    From!{project,[N,getNthPrime(N),routTableKey(DistNname),routTableKey(SenderNname),Hops]},
-        loop()
-    end.
+            loop(RTable,NList);
+        {From, {computeNthPrime,N,DistNname,SenderNname,Hops}} ->
+            Ans = getNthPrime(N),
+            Neigh = lookUpTable(SenderNname,RTable),
+            NPid =  findNighPid(Neigh,NList),
+            io:fwrite("the Neigh  is ~p~n", [Neigh] ),
+            io:fwrite("the Name  is ~p~n", [DistNname] ),
+            io:fwrite("the NPID  is ~p~n", [NPid] ),
+            From!{project,[N,Ans,DistNname,SenderNname,Hops]},
+            NPid!{project,[N,Ans,DistNname,SenderNname,Hops]},
+                loop(RTable,NList)
+end.
 
-%  c(project). project:start(). rpc:call(joe@osama,project,cNP,[5,osama,holly,2]).
+%  c(project). RT = project:rTable(). LN =project:nList(). project:start(RT,LN).
+%  c(project). RTS = project:rTableSam(). LNS =project:nListSam().   project:start(RTS,LNS).
+%   
+%  rpc:call(joe@osama,project,computeNthPrime,[5,osama,sam,2]).
