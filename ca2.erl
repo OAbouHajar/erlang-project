@@ -19,10 +19,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 initNList(Name)->
-    PJoe = spawn(fun()-> loop(joe,[],[]) end),
-    PJack = spawn(fun()-> loop(jack,[],[]) end),
-    PRad = spawn(fun()-> loop(rad,[],[]) end),
-    NList = [{osama,xx},{sam,xx},{joe,PJoe},{jack,PJack},{rad,PRad}],
+    NList = [],
     NList.
 
 nListOsama()->
@@ -156,8 +153,11 @@ uNL(Name,RTable,NList)->
     PID.
 
 
-start()->
-    peojectStarted.
+start(PName)->
+    RT = ca2:rTableOsama(),
+    PID = spawn(fun()->ca2:loop(PName,RT,[]) end),
+    PID ! {updateNL,PName,PID},
+    PID.
 
 
 loop(Name,RTable,NList)->
@@ -167,24 +167,19 @@ loop(Name,RTable,NList)->
             io:fwrite(" *********** Update the neighbours List by : ~p~n", [SenderName]),
             io:fwrite(" >>>>>>>  the NEW neighbours List  is ~p~n ", [NewNL] ),
                 loop(Name,RTable,NewNL);
-        {receiveAnswer,Ans,Index,Sender}->
+        {receiveAnswer,Ans,Index,DistNname,Sender}->
             io:fwrite("the Ans  is ~p~n", [Ans] ),
             io:fwrite("the Index  is ~p~n", [Index] ),
-            io:fwrite("the Name  is ~p~n", [Name] ),
+            io:fwrite("the DistNname  is ~p~n", [DistNname] ),
             io:fwrite("the Sender  is ~p~n", [Sender] ),
                 loop(Name,NList,RTable);
         {computeNthPrime,_,_,_,15}->
                 loop(Name,NList,RTable);
-        {computeNthPrime,Index,Name,Sender,Hops}->
-            Ans = getNthPrime(Index),
-            NPid =  findNighPid(Name,NList),
-            NPid!{receiveAnswer,Ans,Index,Sender},
-                loop(Name,NList,RTable);
         {computeNthPrime,Index,Dist,Sender,Hops}->
             Ans = getNthPrime(Index),
-            %Neigh = lookUpTable(Dist,RTable),
-            NPid =  findNighPid(Dist,NList),
-            NPid!{receiveAnswer,Ans,Index,Sender},
+            Neigh = lookUpTable(Dist,RTable),
+            NPid =  findNighPid(Neigh,NList),
+            NPid!{receiveAnswer,Ans,Index,Dist,Sender},
                 loop(Name,NList,RTable);
         {sendHello,DistNname}->
             NPid =  findNighPid(DistNname,NList),
@@ -201,6 +196,18 @@ end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%% TSETING 
+% ****      start the processes ********
+
+%         c(ca2). PID = ca2:start(osama). register(otest,PID).
+%         c(ca2). PID = ca2:start(sam). register(stest,PID).
+% 
+%       ******************* send NL to each others ***********
+%       {stest,sam@osama}!{updateNL,osama,PID}. 
+%       {otest,osama@osama}!{updateNL,sam,PID}.
+
+%       {stest,sam@osama}!{computeNthPrime,5,sam,osama,1}. 
+
+
 
 % c(ca2). RT = ca2:rTableOsama(). LN =ca2:nListOsama(). PID = spawn(fun()->ca2:loop(osama,RT,LN) end). register(otest ,PID).  ca2:uNNL(osama,RT,LN,PID).
 
