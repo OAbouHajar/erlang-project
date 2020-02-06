@@ -18,17 +18,16 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          Project init values section      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-initNList()->
+initNList(Name)->
     PJoe = spawn(fun()-> loop(joe,[],[]) end),
     PJack = spawn(fun()-> loop(jack,[],[]) end),
     PRad = spawn(fun()-> loop(rad,[],[]) end),
-    NList = [{osama,xx},{joe,PJoe},{jack,PJack},{rad,PRad}],
+    NList = [{osama,xx},{sam,xx},{joe,PJoe},{jack,PJack},{rad,PRad}],
     NList.
 
 nListOsama()->
     PJoe = spawn(fun()-> loop(joe,[],[]) end),
-    PSam = spawn(fun()-> loop(sam,[],[]) end),
-    NList = [{osama,xxx},{joe,PJoe},{sam,PSam}],
+    NList = [{joe,PJoe},{sam,xxx}],
     NList.
 
 rTableOsama()->
@@ -38,14 +37,14 @@ rTableOsama()->
 nListSam()->
     PJack = spawn(fun()-> loop(jack,[],[]) end),
     PRad = spawn(fun()-> loop(rad,[],[]) end),
-    POsama = spawn(fun()-> loop(osama,[],[]) end),
 
-    NList = [{sam,xx},{jack,PJack},{rad,PRad},{osama,POsama}],
+    NList = [{jack,PJack},{rad,PRad},{osama,xxx}],
     NList.
 
 rTableSam()->
     RTable = [{sam,sam,0},{osama,osama,1},{jack,jack,1},{rad,rad,1},{joe,osama,2}],
     RTable.
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -134,40 +133,20 @@ findNighPid(X,[_|Tail]) ->
 updateNL(Name,[],PID)->
     [{Name,PID}];
 updateNL(Name,[{Name,_}|Tail],PID)->
-    PID ! [{Name,PID}|Tail];
+    [{Name,PID}|Tail];
 updateNL(Name,[Head|Tail],PID)->
-    [Head|updateRT(Name,Tail,PID)].
-    
-uNNL (Name,RTable,NList,PID)->
-    PID! {updateNL,Name,RTable,NList,PID}.
-
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          Project RPC section              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-        %********************         RPC CALLS               ***************%
-computeNthPrime(N,DistNname,SenderNname,Hops)->
-    rpc({computeNthPrime,N,DistNname,SenderNname,Hops}).
+    [Head|updateNL(Name,Tail,PID)].
     
 
-
-
-        %********************         RPC Function               ***************%
-rpc(Query)->
-    ca2!{self(), Query},
-    receive
-	{ca2,Reply}->
-	    Reply
-    end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%          Project Main section              %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+hello(N)->
+    self() ! {sendHello,N}.
 
 %% start the project and return the process ID started
 uNL(Name,RTable,NList)->
@@ -183,21 +162,37 @@ start()->
 
 loop(Name,RTable,NList)->
     receive
-        {updateNL,Name,RTable,NList,PID} ->
-            NewNL = updateNL(Name,NList,PID),
-            io:fwrite("the Mine PID  is ~p~n", [PID] ),
-            io:fwrite("the NEW LN  is ~p~n", [NewNL] ),
-            PID! {updateNL,Name,RTable,NList},
+        {updateNL,SenderName,PID} ->
+            NewNL = updateNL(SenderName,NList,PID),
+            io:fwrite(" *********** Update the neighbours List by : ~p~n", [SenderName]),
+            io:fwrite(" >>>>>>>  the NEW neighbours List  is ~p~n ", [NewNL] ),
                 loop(Name,RTable,NewNL);
-        {From, {computeNthPrime,N,DistNname,SenderNname,Hops}} ->
-            Ans = getNthPrime(N),
-            Neigh = lookUpTable(DistNname,RTable),
-            NPid =  findNighPid(Neigh,NList),
-            io:fwrite("the Neigh  is ~p~n", [Neigh] ),
-            io:fwrite("the Name  is ~p~n", [DistNname] ),
-            io:fwrite("the NPID  is ~p~n", [NPid] ),
-            From!{ca2,[N,Ans,DistNname,SenderNname,Hops]},
-            NPid!{ca2,[N,Ans,DistNname,SenderNname,Hops]},
+        {receiveAnswer,Ans,Index,Sender}->
+            io:fwrite("the Ans  is ~p~n", [Ans] ),
+            io:fwrite("the Index  is ~p~n", [Index] ),
+            io:fwrite("the Name  is ~p~n", [Name] ),
+            io:fwrite("the Sender  is ~p~n", [Sender] ),
+                loop(Name,NList,RTable);
+        {computeNthPrime,_,_,_,15}->
+                loop(Name,NList,RTable);
+        {computeNthPrime,Index,Name,Sender,Hops}->
+            Ans = getNthPrime(Index),
+            NPid =  findNighPid(Name,NList),
+            NPid!{receiveAnswer,Ans,Index,Sender},
+                loop(Name,NList,RTable);
+        {computeNthPrime,Index,Dist,Sender,Hops}->
+            Ans = getNthPrime(Index),
+            %Neigh = lookUpTable(Dist,RTable),
+            NPid =  findNighPid(Dist,NList),
+            NPid!{receiveAnswer,Ans,Index,Sender},
+                loop(Name,NList,RTable);
+        {sendHello,DistNname}->
+            NPid =  findNighPid(DistNname,NList),
+            self()! io:fwrite("Hello Sent To  ~p~n", [DistNname]),
+            NPid ! {helloMsg, Name},
+                loop(Name,RTable,NList);
+        {helloMsg, SenderName}->
+            io:fwrite("Hello From  ~p~n", [SenderName]),
                 loop(Name,RTable,NList)
 end.
 
@@ -205,34 +200,17 @@ end.
 
 
 
-
-
-
-
-
-
-
-
-%  c(ca2). RT = ca2:rTableOsama(). LN =ca2:nListOsama(). ca2:uNL(osama,RT,LN).
-%  c(ca2). RTS = ca2:rTableSam(). LNS =ca2:nListSam().   ca2:uNL(sam,RTS,LNS).
-%   
-%      PID = spawn(fun()-> ca2:uNL(osama,RT,LN) end),
-
-%  rpc:call(joe@osama,ca2,computeNthPrime,[5,osama,sam,2]).
-
-%  {project,sam@osama}!{project, self()}.
-
-
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%% TSETING 
 
-% c(ca2). RT = ca2:rTableOsama(). LN =ca2:nListOsama(). PID = spawn(fun()->ca2:loop(osama,RT,LN) end). register(osama,PID).  ca2:uNNL(osama,RT,LN,PID).
+% c(ca2). RT = ca2:rTableOsama(). LN =ca2:nListOsama(). PID = spawn(fun()->ca2:loop(osama,RT,LN) end). register(otest ,PID).  ca2:uNNL(osama,RT,LN,PID).
 
 %{sam,sam@osama}!{updateNL,osama,RT,LN,self(),xxx}.
+% otest ! {updateNL,osama,RT,LN,PID}.
 
-% register(osama,PID).
+%  {stest,sam@osama}!{updateNL,osama,PID}. 
 
-% c(ca2). RTS = ca2:rTableSam(). LNS =ca2:nListSam(). PID = spawn(fun()->ca2:loop(sam,RTS,LNS) end). register(sam,PID). {osama,osama@osama}!{updateNL,sam,RTS,LNS,self(),xxx}.
+%  {stest,sam@osama}!{computeNthPrime,5,sam,osama,1}. 
 
+% c(ca2). RT = ca2:rTableSam(). LN =ca2:nListSam(). PIDS = spawn(fun()->ca2:loop(sam,RT,LN) end). register(stest,PIDS). {osama,osama@osama}!{updateNL,sam,RTS,LNS,self(),xxx}.
+% {otest,osama@osama}!{updateNL,sam,PIDS}.
 
